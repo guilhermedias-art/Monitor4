@@ -3,7 +3,7 @@ import sys
 import psutil
 import time
 
-HOST = "172.16.240.97"
+HOST = "1127.0.0.1"
 PORT = 1080
 NUM_BYTES = 1024
 

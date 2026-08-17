@@ -1,4 +1,3 @@
- 
 import socket
 import sys
 import psutil
@@ -6,39 +5,41 @@ import time
 
 
 HOST = '127.0.0.1'
-PORT =  5000
+PORT = 4998
 NUM_BYTES = 1024
 
-client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-client.connect((HOST,PORT))
-client.sendall(b'Bem vindo ao servidor')
-dados = client.recv(NUM_BYTES)
+cliente = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 
-def input_usuario(client):
+cliente.connect((HOST,PORT))
+
+
+def envio_d_dados(client) :
     while True:
-        mensagem = input("")
+        mensagem = input("CPU-5<  ")
         client.sendall(mensagem.encode('utf-8'))
-        resposta = client.recv(NUM_BYTES)
-        server_resposta = resposta.decode()
-
-    
-
-    
 
 
+def exibir_msg(client):
+    while True:
+        dados_p_decodificar = client.recv(NUM_BYTES)
+        if not dados_p_decodificar :
+            print("A mensagem que o usuário digitou não conseguiu ser lida")
+            quit()
+        mensagem_decodificada = dados_p_decodificar.decode('utf-8')
+        print(mensagem_decodificada)
 
 
+try :
+    envio_d_dados(cliente)
+    exibir_msg(cliente)
+
+        
+
+except SystemError :
+    print("Tente Novamente!")
 
 
-
-    
-
-
-
-
-
-
-
-
+finally:
+    quit()
 
 

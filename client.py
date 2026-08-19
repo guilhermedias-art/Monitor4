@@ -2,11 +2,12 @@ import socket
 import sys
 import psutil
 import time
-
+from threading import Thread
 
 HOST = '127.0.0.1'
 PORT = 4998
 NUM_BYTES = 1024
+
 
 cliente = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 
@@ -20,26 +21,27 @@ def envio_d_dados(client) :
 
 
 def exibir_msg(client):
-    while True:
-        dados_p_decodificar = client.recv(NUM_BYTES)
-        if not dados_p_decodificar :
-            print("A mensagem que o usuário digitou não conseguiu ser lida")
-            quit()
-        mensagem_decodificada = dados_p_decodificar.decode('utf-8')
-        print(mensagem_decodificada)
+        while True:
+            dados_p_decodificar = client.recv(NUM_BYTES)
+            if not dados_p_decodificar :
+                print("A mensagem que o usuário digitou não conseguiu ser lida")
+                quit()
+            mensagem_decodificada = dados_p_decodificar.decode('utf-8')
+            print(mensagem_decodificada)
 
 
-try :
-    envio_d_dados(cliente)
-    exibir_msg(cliente)
+while True:
+    thread1 = Thread(target =envio_d_dados, args=(cliente,),daemon = True)
+    thread2 = Thread(target =exibir_msg, args=(cliente,),daemon= True) 
+
+    thread1.start()
+    thread2.start()
+
+
+    thread1.join()
+    thread2.join()
 
         
 
-except SystemError :
-    print("Tente Novamente!")
-
-
-finally:
-    quit()
 
 

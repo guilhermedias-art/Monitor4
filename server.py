@@ -36,7 +36,7 @@ def enviar_dados(conn):
             memoria = psutil.virtual_memory().percent 
             mensagem = (f'Uso de CPU em % = {cpu} , Uso de RAM em % = {memoria}')
             conn.sendall(mensagem.encode('utf-8'))
-            time.sleep(2)
+            time.sleep(5)
 
 
 

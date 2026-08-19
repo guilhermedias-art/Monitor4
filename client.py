@@ -1,22 +1,16 @@
 import socket
-import sys
-import psutil
-import time
 from threading import Thread
 
 HOST = '127.0.0.1'
 PORT = 4998
 NUM_BYTES = 1024
 
-
 cliente = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-
 cliente.connect((HOST,PORT))
-
 
 def envio_d_dados(client) :
     while True:
-        mensagem = input("CPU-5<  ")
+        mensagem = input("")
         client.sendall(mensagem.encode('utf-8'))
 
 
@@ -30,18 +24,15 @@ def exibir_msg(client):
             print(mensagem_decodificada)
 
 
-while True:
-    thread1 = Thread(target =envio_d_dados, args=(cliente,),daemon = True)
-    thread2 = Thread(target =exibir_msg, args=(cliente,),daemon= True) 
+thread1 = Thread(target =envio_d_dados, args=(cliente,),daemon = True)
+thread2 = Thread(target =exibir_msg, args=(cliente,),daemon= True) 
 
-    thread1.start()
-    thread2.start()
+thread1.start()
+thread2.start()
 
+thread1.join()
+thread2.join()
 
-    thread1.join()
-    thread2.join()
-
-        
 
 
 

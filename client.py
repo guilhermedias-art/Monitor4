@@ -9,6 +9,12 @@ cliente = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 cliente.connect((HOST,PORT))
 
 def envio_d_dados(client) :
+    print("MENU:\n" \
+    "Monitorar CPU -> CPU<(tempo)\n" \
+    "Monitorar Memoria -> MEM<(tempo)\n" \
+    "Sair -> quit\n" \
+    "Terminar -> exit\n")
+
     while True:
         mensagem = input("")
         client.sendall(mensagem.encode('utf-8'))

@@ -3,41 +3,76 @@ import sys
 import psutil
 import time
 from threading import Thread
+import queue
 
 HOST = '127.0.0.1'
 PORT = 4998
 NUM_BYTES = 1024
 
-periodo = int(input())
-tipo = int(input())
-
 tempo_formatado = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
+fila_msg = queue.Queue()
+
 def decodificar_mensagem(conn):
+    # Implementar aqui a escolha do comando
     try:
+        msg = ""
         while True:
             dados = conn.recv(NUM_BYTES)
+
             if not dados:
-                print("Cliente não conseguiu se conectar")
+                msg= "Cliente não conseguiu se conectar"
+                fila_msg.append(msg)
                 break
-            print(f"{tempo_formatado} -> CONECTADO")
+            
+            msg = f"{tempo_formatado} -> CONECTADO"
+            fila_msg.put(msg)
+
             mensagem_decodificada = dados.decode("utf-8")
-            if mensagem_decodificada == 'q':
-                print('Voce encerrou a conexão com o servidor')
+
+            palavra, arg = mensagem_decodificada.split("<")
+
+            if(palavra.upper() == 'CPU'):
+                msg = f"Comando requisitado: CPU {arg}"
+                fila_msg.put(msg)
+                
+            elif(palavra.upper() == 'MEM'):
+                msg = f"Comando requisitado: MEM {arg}"
+                fila_msg.put(msg)
+
+            elif(palavra.upper() == 'QUIT'):
+                msg = f"Comando requisitado: Quit {arg}"
+                fila_msg.put(msg)
+
+            elif(palavra.upper() == 'EXIT'):
+                msg = f'Voce encerrou a conexão com o servidor'
+                fila_msg.put(msg)
                 break
 
-            print(mensagem_decodificada)
+            else:
+                msg = f"Digite uma mensagem válida!"
+                fila_msg.put(msg)
+
     except Exception as e:
-            print("Erro no armazenamento de dados")
+            msg = f"Erro no armazenamento de dados: {e}"
 
-    
+'''
+def monitoramento(conn, comando):
+    if(comando = "cpu"):
+        cpu = psutil.cpu_percent()
+'''
 
-def enviar_dados(conn, tipo, periodo):
+def enviar_dados(conn, ):
     while True:
+            '''
             cpu = psutil.cpu_percent()
             memoria = psutil.virtual_memory().percent
             mensagem = (f'Uso de CPU em % = {cpu} , Uso de RAM em % = {memoria}')
-            conn.sendall(mensagem.encode('utf-8'))
+            '''
+
+            msg = fila_msg.get()
+
+            conn.sendall(msg.encode('utf-8'))
             time.sleep(5)
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -49,14 +84,8 @@ while True:
     conexao, endereço = server.accept()
     print('Serviço conectado no :', endereço)
 
-    print("MENU:\n" \
-    "1. Monitorar CPU\n" \
-    "2. Monitorar Memoria\n" \
-    "3. Sair (quit)\n" \
-    "4. Terminar\n")
-
     thread1 = Thread(target=decodificar_mensagem, args=(conexao,),daemon=True)
-    thread2 = Thread(target=enviar_dados, args=(conexao, tipo, periodo),daemon = True)
+    thread2 = Thread(target=enviar_dados, args=(conexao, ),daemon = True)
 
     thread1.start()
     thread2.start()

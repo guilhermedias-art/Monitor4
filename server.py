@@ -18,7 +18,7 @@ def decodificar_mensagem(conn):
     try:
         msg = f"{tempo_formatado} -> CONECTADO"
         fila_msg.put(msg)
-        
+
         while True:
             dados = conn.recv(NUM_BYTES)
 
@@ -34,10 +34,14 @@ def decodificar_mensagem(conn):
             if(palavra.upper() == 'CPU'):
                 msg = f"Comando requisitado: CPU {arg}"
                 fila_msg.put(msg)
+                thread_mem = Thread(target=monitoramento, args=(palavra, arg))
+                thread_mem.start()
                 
             elif(palavra.upper() == 'MEM'):
                 msg = f"Comando requisitado: MEM {arg}"
                 fila_msg.put(msg)
+                thread_mem = Thread(target=monitoramento, args=(palavra, arg))
+                thread_mem.start()
 
             elif(palavra.upper() == 'QUIT'):
                 msg = f"Comando requisitado: Quit {arg}"
@@ -55,26 +59,30 @@ def decodificar_mensagem(conn):
     except Exception as e:
             msg = f"Erro no armazenamento de dados: {e}"
 
-'''
-def monitoramento(conn, comando):
-    if(comando = "cpu"):
+
+def monitoramento(palavra, arg):
+    palavra = palavra.upper()
+    mensagem = ""
+    if (palavra == "CPU"):
         cpu = psutil.cpu_percent()
-'''
+        mensagem = (f'Uso de CPU em % = {cpu}')
+    elif (palavra == "MEM"):
+        memoria = psutil.virtual_memory().percent
+        mensagem = (f'Uso de RAM em % = {memoria}')
+    
+    while True:
+        fila_msg.put(mensagem)
+        print(mensagem)
+        time.sleep(int(arg))
 
 def enviar_dados(conn, ):
     while True:
-            '''
-            cpu = psutil.cpu_percent()
-            memoria = psutil.virtual_memory().percent
-            mensagem = (f'Uso de CPU em % = {cpu} , Uso de RAM em % = {memoria}')
-            '''
-
             msg = fila_msg.get()
-
             conn.sendall(msg.encode('utf-8'))
-            time.sleep(5)
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
 server.bind((HOST,PORT))
 print("Servidor Iniciado!\n")
 server.listen(1)

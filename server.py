@@ -16,7 +16,9 @@ fila_msg = queue.Queue()
 def decodificar_mensagem(conn):
     # Implementar aqui a escolha do comando
     try:
-        msg = ""
+        msg = f"{tempo_formatado} -> CONECTADO"
+        fila_msg.put(msg)
+        
         while True:
             dados = conn.recv(NUM_BYTES)
 
@@ -24,9 +26,6 @@ def decodificar_mensagem(conn):
                 msg= "Cliente não conseguiu se conectar"
                 fila_msg.append(msg)
                 break
-            
-            msg = f"{tempo_formatado} -> CONECTADO"
-            fila_msg.put(msg)
 
             mensagem_decodificada = dados.decode("utf-8")
 

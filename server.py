@@ -49,12 +49,12 @@ def decodificar_mensagem(conn):
                 fila_msg.put(msg)
                 break
 
-            elif "<" not in mensagem_decodificada:
+            elif ">" not in mensagem_decodificada:
                 msg = f"Digite uma mensagem válida!"
                 fila_msg.put(msg)
                 continue
 
-            palavra, arg = mensagem_decodificada.split("<", 1)
+            palavra, arg = mensagem_decodificada.split(">", 1)
 
             if(palavra.upper() == 'CPU'):
                 msg = f"Comando requisitado: CPU {arg}"
@@ -73,6 +73,7 @@ def decodificar_mensagem(conn):
                 number = number + 1
                 evento_parar = Event()
                 thread_mem = Thread(target=monitoramento, args=(nome, evento_parar, palavra, arg))
+                threads_monitores[nome] = {"thread": thread_mem, "evento": evento_parar}
                 thread_mem.start()
 
             else:
@@ -137,9 +138,9 @@ while True:
 
     msg = "Menu de Comandos:\n" \
             "Listar Monitores = LIST\n" \
-            "Monitorar CPU = CPU-(tempo)\n" \
-            "Monitorar Memoria = MEM-(tempo)\n" \
-            "Sair = quit\n" \
+            "Monitorar CPU = CPU>(tempo)\n" \
+            "Monitorar Memoria = MEM>(tempo)\n" \
+            "Terminar monitor = QUIT>(monitor)\n" \
             "Terminar = exit\n"
 
     thread1 = Thread(target=decodificar_mensagem, args=(conexao,),daemon=True)

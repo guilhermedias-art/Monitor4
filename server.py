@@ -65,17 +65,20 @@ def decodificar_mensagem(conn):
 
 def monitoramento(palavra, arg):
     palavra = palavra.upper()
-    mensagem = ""
-    if (palavra == "CPU"):
-        cpu = psutil.cpu_percent()
-        mensagem = (f'Uso de CPU em % = {cpu}')
-    elif (palavra == "MEM"):
-        memoria = psutil.virtual_memory().percent
-        mensagem = (f'Uso de RAM em % = {memoria}')
 
     while True:
+
+        if (palavra == "CPU"):
+            cpu = psutil.cpu_percent(interval=1)
+            mensagem = (f'Uso de CPU em % = {cpu}')
+
+        elif (palavra == "MEM"):
+            memoria = psutil.virtual_memory().percent
+            mensagem = (f'Uso de RAM em % = {memoria}')
+
         fila_msg.put(mensagem)
         print(mensagem)
+
         time.sleep(int(arg))
 def enviar_dados(conn, ):
     while True:

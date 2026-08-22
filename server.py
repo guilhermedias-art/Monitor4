@@ -16,7 +16,10 @@ threads_monitores = {}
 
 def decodificar_mensagem(conn):
     try:
-        msg = f"{tempo_formatado} : CONECTADO!"
+
+        tempo_formatado = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+        msg = f"{tempo_formatado} - Conectado!"
         number = 0
         fila_msg.put(msg)
 

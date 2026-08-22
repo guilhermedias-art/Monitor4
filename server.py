@@ -54,7 +54,6 @@ def decodificar_mensagem(conn):
                 continue
 
             palavra, arg = mensagem_decodificada.split(">", 1)
-
             if palavra.upper() in ['CPU', 'MEM']:
                 if not arg.isdigit() or int(arg) <= 0:
                     msg = "Digite um período válido!"
@@ -129,9 +128,15 @@ def listar_monitores():
 
     lista_nomes = list(threads_monitores.keys())
 
-    for indice, nome in enumerate(lista_nomes, start=1):
-        msg = f"[{indice}] {nome}\n"
+    if not lista_nomes:
+        msg = "Nenhum monitor ativo\n"
         fila_msg.put(msg)
+        return
+
+    for indice, nome in enumerate(lista_nomes, start=1):
+        if threads_monitores[nome]["thread"].is_alive():
+            msg = f"[{indice}] {nome}\n"
+            fila_msg.put(msg)
 
 
 def monitoramento(nome, parada, palavra, arg):

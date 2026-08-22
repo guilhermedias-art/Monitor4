@@ -53,6 +53,12 @@ def decodificar_mensagem(conn):
 
             palavra, arg = mensagem_decodificada.split(">", 1)
 
+            if palavra.upper() in ['CPU', 'MEM']:
+                if not arg.isdigit() or int(arg) <= 0:
+                    msg = "Digite um período válido!"
+                    fila_msg.put(msg)
+                    continue
+
             if(palavra.upper() == 'CPU'):
                 msg = f"Comando requisitado: CPU {arg}"
                 fila_msg.put(msg)

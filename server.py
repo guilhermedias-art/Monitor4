@@ -32,15 +32,6 @@ def decodificar_mensagem(conn):
             if(mensagem_decodificada.upper() == 'LIST'):
                 listar_monitores()
                 continue
-            
-            elif(mensagem_decodificada.upper() == 'QUIT'):
-                # Desligar um monitor em especifico
-                
-                '''msg = f"Comando requisitado: Quit"
-                fila_msg.put(msg)
-                break
-                '''
-                continue
 
             elif(mensagem_decodificada.upper() == 'EXIT'):
                 msg = f'Voce encerrou a conexão com o servidor'
@@ -62,8 +53,17 @@ def decodificar_mensagem(conn):
                 nome = f"Monitor {number}"
                 number = number + 1
                 evento_parar = Event()
-                thread_cpu = Thread(target=monitoramento, args=(nome, evento_parar, palavra, arg))
-                threads_monitores[nome] = {"thread": thread_cpu, "evento": evento_parar}
+
+                thread_cpu = Thread(
+                    target=monitoramento,
+                    args=(nome, evento_parar, palavra, arg)
+                )
+
+                threads_monitores[nome] = {
+                    "thread": thread_cpu,
+                    "evento": evento_parar
+                }
+
                 thread_cpu.start()
 
             elif(palavra.upper() == 'MEM'):
@@ -72,9 +72,34 @@ def decodificar_mensagem(conn):
                 nome = f"Monitor {number}"
                 number = number + 1
                 evento_parar = Event()
-                thread_mem = Thread(target=monitoramento, args=(nome, evento_parar, palavra, arg))
-                threads_monitores[nome] = {"thread": thread_mem, "evento": evento_parar}
+
+                thread_mem = Thread(
+                    target=monitoramento,
+                    args=(nome, evento_parar, palavra, arg)
+                )
+
+                threads_monitores[nome] = {
+                    "thread": thread_mem,
+                    "evento": evento_parar
+                }
+
                 thread_mem.start()
+
+            elif(palavra.upper() == 'QUIT'):
+
+                if arg in threads_monitores:
+
+                    threads_monitores[arg]["evento"].set()
+
+                    msg = f"{arg} encerrado"
+                    fila_msg.put(msg)
+
+                    del threads_monitores[arg]
+
+                else:
+
+                    msg = f"Monitor não encontrado"
+                    fila_msg.put(msg)
 
             else:
                 msg = f"Digite uma mensagem válida!"
@@ -93,7 +118,7 @@ def listar_monitores():
     for indice, nome in enumerate(lista_nomes, start=1):
         msg = f"[{indice}] {nome}\n"
         fila_msg.put(msg)
-    
+
 
 def monitoramento(nome, parada, palavra, arg):
     palavra = palavra.upper()
@@ -111,7 +136,7 @@ def monitoramento(nome, parada, palavra, arg):
         fila_msg.put(mensagem)
         print(mensagem)
 
-        time.sleep(int(arg))
+        parada.wait(int(arg))
 
 
 def enviar_dados(conn, ):

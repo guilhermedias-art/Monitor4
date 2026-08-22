@@ -34,6 +34,12 @@ def decodificar_mensagem(conn):
                 continue
 
             elif(mensagem_decodificada.upper() == 'EXIT'):
+
+                for monitor in threads_monitores.values():
+                    monitor["evento"].set()
+
+                threads_monitores.clear()
+
                 msg = f'Voce encerrou a conexão com o servidor'
                 fila_msg.put(msg)
                 msg = "EXIT"

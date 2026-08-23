@@ -19,7 +19,7 @@ def decodificar_mensagem(conn):
 
         tempo_formatado = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-        msg = f"{tempo_formatado} - CONECTADO! !\n"
+        msg = f"{tempo_formatado}: CONECTADO!!\n"
         number = 0
         fila_msg.put(msg)
 
@@ -136,6 +136,12 @@ def decodificar_mensagem(conn):
             msg = f"Erro no armazenamento de dados: {e}"
             fila_msg.put(msg)
 
+            for monitor in threads_monitores.values():
+                monitor["evento"].set()
+
+            threads_monitores.clear()
+            fila_msg.put("EXIT")
+
 def listar_monitores():
     msg = "\n--- Threads Ativas Atualmente ---\n"
     fila_msg.put(msg)
@@ -184,12 +190,15 @@ def enviar_dados(conn, ):
     while True:
         try:
             msg = fila_msg.get()
+
             if(msg.upper() == "EXIT"):
                 finish = True
+                conn.sendall(msg.encode('utf-8'))
                 print("Envio de dados encerrado")
                 break
 
             conn.sendall(msg.encode('utf-8'))
+            
         except (Exception):
             break
 

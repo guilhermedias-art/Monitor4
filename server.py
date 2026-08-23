@@ -26,8 +26,12 @@ def decodificar_mensagem(conn):
         while True:
             dados = conn.recv(NUM_BYTES)
             if not dados:
-                msg= "Cliente não conseguiu se conectar"
-                fila_msg.put(msg)
+
+                for monitor in threads_monitores.values():
+                    monitor["evento"].set()
+
+                threads_monitores.clear()
+                fila_msg.put("EXIT")
                 break
 
             mensagem_decodificada = dados.decode("utf-8")

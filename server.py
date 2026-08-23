@@ -54,6 +54,10 @@ def decodificar_mensagem(conn):
                 continue
 
             palavra, arg = mensagem_decodificada.split(">", 1)
+
+            palavra = palavra.strip()
+            arg = arg.strip()
+
             if palavra.upper() in ['CPU', 'MEM']:
                 if not arg.isdigit() or int(arg) <= 0:
                     msg = "Digite um período válido!"
@@ -74,7 +78,9 @@ def decodificar_mensagem(conn):
 
                 threads_monitores[nome] = {
                     "thread": thread_cpu,
-                    "evento": evento_parar
+                    "evento": evento_parar,
+                    "tipo": "CPU",
+                    "intervalo": arg
                 }
 
                 thread_cpu.start()
@@ -93,7 +99,9 @@ def decodificar_mensagem(conn):
 
                 threads_monitores[nome] = {
                     "thread": thread_mem,
-                    "evento": evento_parar
+                    "evento": evento_parar,
+                    "tipo": "MEM",
+                    "intervalo": arg
                 }
 
                 thread_mem.start()
@@ -133,11 +141,19 @@ def listar_monitores():
         fila_msg.put(msg)
         return
 
+    quantidade_ativos = 0
+
     for indice, nome in enumerate(lista_nomes, start=1):
-        if threads_monitores[nome]["thread"].is_alive():
-            msg = f"[{indice}] {nome}\n"
+        monitor = threads_monitores[nome]
+
+        if monitor["thread"].is_alive():
+            quantidade_ativos += 1
+
+            msg = f"{indice}. {nome} - Tipo: {monitor['tipo']} - Intervalo: {monitor['intervalo']} segundos\n"
             fila_msg.put(msg)
 
+    msg = f"\nTotal de monitores ativos: {quantidade_ativos}\n"
+    fila_msg.put(msg)
 
 def monitoramento(nome, parada, palavra, arg):
     palavra = palavra.upper()

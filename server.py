@@ -19,7 +19,7 @@ def decodificar_mensagem(conn):
 
         tempo_formatado = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-        msg = f"{tempo_formatado} - Conectado!"
+        msg = f"{tempo_formatado} - CONECTADO! !\n"
         number = 0
         fila_msg.put(msg)
 
@@ -62,7 +62,7 @@ def decodificar_mensagem(conn):
             palavra = palavra.strip()
             arg = arg.strip()
 
-            if palavra.upper() in ['CPU', 'MEM']:
+            if palavra.upper() in ['CPU', 'MEM', 'MEMORIA']:
                 if not arg.isdigit() or int(arg) <= 0:
                     msg = "Digite um período válido!"
                     fila_msg.put(msg)
@@ -71,8 +71,10 @@ def decodificar_mensagem(conn):
             if(palavra.upper() == 'CPU'):
                 msg = f"Comando requisitado: CPU {arg}"
                 fila_msg.put(msg)
+
                 nome = f"Monitor {number}"
                 number = number + 1
+
                 evento_parar = Event()
 
                 thread_cpu = Thread(
@@ -89,7 +91,7 @@ def decodificar_mensagem(conn):
 
                 thread_cpu.start()
 
-            elif(palavra.upper() == 'MEM'):
+            elif palavra.upper() in ['MEM', 'MEMORIA']:
                 msg = f"Comando requisitado: MEM {arg}"
                 fila_msg.put(msg)
                 nome = f"Monitor {number}"
@@ -168,7 +170,7 @@ def monitoramento(nome, parada, palavra, arg):
             cpu = psutil.cpu_percent(interval=1)
             mensagem = (f'{nome} (CPU) em % = {cpu}')
 
-        elif (palavra == "MEM"):
+        elif palavra in ["MEM", "MEMORIA"]:
             memoria = psutil.virtual_memory().percent
             mensagem = (f'{nome}: (RAM) em % = {memoria}')
 

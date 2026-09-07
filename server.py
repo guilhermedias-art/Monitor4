@@ -12,7 +12,6 @@ PORT = 4998
 NUM_BYTES = 1024
 
 
-
 def decodificar_mensagem(conn,fila_msg,threads_monitores):
     try:
         tempo_formatado = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -210,8 +209,8 @@ def aceitar_cliente(conn,endereço):
     print(msg1)
     fila_msg.put(msg1)
     try:
-        thread1 = Thread(target=decodificar_mensagem, args=(conexao,fila_msg,threads_monitores),daemon=True)
-        thread2 = Thread(target=enviar_dados, args=(conexao, fila_msg,),daemon = True)
+        thread1 = Thread(target=decodificar_mensagem, args=(conn,fila_msg,threads_monitores),daemon=True)
+        thread2 = Thread(target=enviar_dados, args=(conn, fila_msg,),daemon = True)
 
         thread1.start()
         thread2.start()
@@ -220,6 +219,9 @@ def aceitar_cliente(conn,endereço):
         thread2.join()
     except Exception:
         print("Cliente ainda conetado no endereço {endereço}")
+    finally:
+        conn.close()
+        print("Usuário desconectado!")
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -233,7 +235,6 @@ while True:
         conexao, endereço = server.accept()
         thread3 = Thread(target = aceitar_cliente, args = (conexao,endereço,), daemon = True)
         thread3.start()
-        print("Usuário desconectado!")
 
     except KeyboardInterrupt:
         print("\nServidor finalizado pelo operador.")

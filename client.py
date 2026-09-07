@@ -34,7 +34,7 @@ def exibir_msg(client):
             mensagem_decodificada = dados_p_decodificar.decode('utf-8').strip()
             print(mensagem_decodificada)
 
-            # Quando o servidor envia a confirmação final de EXIT
+
             if mensagem_decodificada == "EXIT":
                 print("\nSaindo do programa")
                 client.close()
@@ -43,7 +43,7 @@ def exibir_msg(client):
         except Exception:
             break
 
-    # Fecha a conexão e encerra o processo do cliente totalmente
+
     client.close()
     sys.exit(0)
 
@@ -54,5 +54,5 @@ thread2 = Thread(target=exibir_msg, args=(cliente,), daemon=True)
 thread1.start()
 thread2.start()
 
-# Aguarda a thread de exibição finalizar para fechar a execução
+
 thread2.join()

@@ -4,29 +4,25 @@ import psutil
 import time
 from threading import Thread, Event
 import queue
+import asyncio
+
 
 HOST = '127.0.0.1'
 PORT = 4998
 NUM_BYTES = 1024
 
-tempo_formatado = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-fila_msg = queue.Queue()
-threads_monitores = {}
 
-def decodificar_mensagem(conn):
+def decodificar_mensagem(conn,fila_msg,threads_monitores):
     try:
-
         tempo_formatado = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
         msg = f"{tempo_formatado}: CONECTADO!!\n"
         number = 0
         fila_msg.put(msg)
-
         while True:
             dados = conn.recv(NUM_BYTES)
             if not dados:
-
                 for monitor in threads_monitores.values():
                     monitor["evento"].set()
 
@@ -37,7 +33,7 @@ def decodificar_mensagem(conn):
             mensagem_decodificada = dados.decode("utf-8")
 
             if(mensagem_decodificada.upper() == 'LIST'):
-                listar_monitores()
+                listar_monitores(fila_msg,threads_monitores)
                 continue
 
             elif(mensagem_decodificada.upper() == 'EXIT'):
@@ -79,7 +75,7 @@ def decodificar_mensagem(conn):
 
                 thread_cpu = Thread(
                     target=monitoramento,
-                    args=(nome, evento_parar, palavra, arg)
+                    args=(nome, evento_parar, palavra, arg,fila_msg,threads_monitores)
                 )
 
                 threads_monitores[nome] = {
@@ -100,7 +96,7 @@ def decodificar_mensagem(conn):
 
                 thread_mem = Thread(
                     target=monitoramento,
-                    args=(nome, evento_parar, palavra, arg)
+                    args=(nome, evento_parar, palavra, arg,fila_msg,threads_monitores)
                 )
 
                 threads_monitores[nome] = {
@@ -124,7 +120,6 @@ def decodificar_mensagem(conn):
                     del threads_monitores[arg]
 
                 else:
-
                     msg = f"Monitor não encontrado"
                     fila_msg.put(msg)
 
@@ -135,14 +130,13 @@ def decodificar_mensagem(conn):
     except Exception as e:
             msg = f"Erro no armazenamento de dados: {e}"
             fila_msg.put(msg)
-
+    finally:
             for monitor in threads_monitores.values():
                 monitor["evento"].set()
-
             threads_monitores.clear()
             fila_msg.put("EXIT")
 
-def listar_monitores():
+def listar_monitores(fila_msg,threads_monitores):
     msg = "\n--- Threads Ativas Atualmente ---\n"
     fila_msg.put(msg)
 
@@ -167,7 +161,7 @@ def listar_monitores():
     msg = f"\nTotal de monitores ativos: {quantidade_ativos}\n"
     fila_msg.put(msg)
 
-def monitoramento(nome, parada, palavra, arg):
+def monitoramento(nome, parada, palavra, arg,fila_msg,threads_monitores):
     palavra = palavra.upper()
 
     while not parada.is_set():
@@ -184,9 +178,9 @@ def monitoramento(nome, parada, palavra, arg):
         print(mensagem)
 
         parada.wait(int(arg))
+        
 
-
-def enviar_dados(conn, ):
+def enviar_dados(conn,fila_msg):
     while True:
         try:
             msg = fila_msg.get()
@@ -202,40 +196,47 @@ def enviar_dados(conn, ):
         except (Exception):
             break
 
+def aceitar_cliente(conn,endereço):
+    print('Serviço conectado no :', endereço)
+    fila_msg = queue.Queue()
+    threads_monitores = {}
+    msg1 = "Menu de Comandos:\n" \
+                    "Listar Monitores = LIST\n" \
+                    "Monitorar CPU = CPU>(tempo)\n" \
+                    "Monitorar Memoria = MEM>(tempo)\n" \
+                    "Terminar monitor = QUIT>(monitor)\n" \
+                    "Terminar = exit\n"
+    
+    print(msg1)
+    fila_msg.put(msg1)
+    try:
+        thread1 = Thread(target=decodificar_mensagem, args=(conexao,fila_msg,threads_monitores),daemon=True)
+        thread2 = Thread(target=enviar_dados, args=(conexao, fila_msg,),daemon = True)
+
+        thread1.start()
+        thread2.start()
+
+        thread1.join()
+        thread2.join()
+    except Exception:
+        print("Cliente ainda conetado no endereço {endereço}")
+
+
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 server.bind((HOST,PORT))
 print("Servidor Iniciado!\n")
-server.listen(1)
-
+server.listen(5)
 while True:
     try:
         conexao, endereço = server.accept()
-        print('Serviço conectado no :', endereço)
-
-        msg = "Menu de Comandos:\n" \
-            "Listar Monitores = LIST\n" \
-            "Monitorar CPU = CPU>(tempo)\n" \
-            "Monitorar Memoria = MEM>(tempo)\n" \
-            "Terminar monitor = QUIT>(monitor)\n" \
-            "Terminar = exit\n"
-
-        thread1 = Thread(target=decodificar_mensagem, args=(conexao,),daemon=True)
-        thread2 = Thread(target=enviar_dados, args=(conexao, ),daemon = True)
-
-        thread1.start()
-        thread2.start()
-
-        fila_msg.put(msg)
-
-        thread1.join()
-        thread2.join()
-
-        conexao.close()
+        thread3 = Thread(target = aceitar_cliente, args = (conexao,endereço,), daemon = True)
+        thread3.start()
         print("Usuário desconectado!")
 
     except KeyboardInterrupt:
         print("\nServidor finalizado pelo operador.")
         server.close()
         sys.exit(0)
+

@@ -20,7 +20,7 @@ def envio_d_dados(client):
             mensagem = input("")
             if mensagem:
                 client.sendall(mensagem.encode('utf-8'))
-        except (BufferError, ConnectionResetError, BrokenPipeError):
+        except (BufferError, ConnectionResetError, BrokenPipeError, OSError, EOFError, ValueError):
             break
 
 def exibir_msg(client):
@@ -43,9 +43,7 @@ def exibir_msg(client):
         except Exception:
             break
 
-
     client.close()
-    sys.exit(0)
 
 # Criando threads
 thread1 = Thread(target=envio_d_dados, args=(cliente,), daemon=True)
@@ -54,5 +52,5 @@ thread2 = Thread(target=exibir_msg, args=(cliente,), daemon=True)
 thread1.start()
 thread2.start()
 
-
 thread2.join()
+sys.exit(0)

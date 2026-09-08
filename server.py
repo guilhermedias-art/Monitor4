@@ -2,7 +2,7 @@ import socket
 import sys
 import psutil
 import time
-from threading import Thread, Event
+from threading import Thread, Event, Semaphore
 import queue
 import asyncio
 
@@ -11,6 +11,13 @@ HOST = '127.0.0.1'
 PORT = 4998
 NUM_BYTES = 1024
 
+if len(sys.argv) < 2:
+    print("Utilize: python server.py <limite_clientes>\nUtilizando 5 clientes como limite padrão")
+    MAX_CLIENTES = 5
+else:
+    MAX_CLIENTES = int(sys.argv[1])
+
+semaforo_clientes = Semaphore(MAX_CLIENTES)
 
 def decodificar_mensagem(conn,fila_msg,threads_monitores):
     try:
@@ -74,7 +81,8 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores):
 
                 thread_cpu = Thread(
                     target=monitoramento,
-                    args=(nome, evento_parar, palavra, arg,fila_msg,threads_monitores)
+                    args=(nome, evento_parar, palavra, arg,fila_msg,threads_monitores),
+                    daemon=True
                 )
 
                 threads_monitores[nome] = {
@@ -95,7 +103,8 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores):
 
                 thread_mem = Thread(
                     target=monitoramento,
-                    args=(nome, evento_parar, palavra, arg,fila_msg,threads_monitores)
+                    args=(nome, evento_parar, palavra, arg,fila_msg,threads_monitores),
+                    daemon=True
                 )
 
                 threads_monitores[nome] = {
@@ -166,7 +175,7 @@ def monitoramento(nome, parada, palavra, arg,fila_msg,threads_monitores):
     while not parada.is_set():
 
         if (palavra == "CPU"):
-            cpu = psutil.cpu_percent(interval=1)
+            cpu = psutil.cpu_percent(interval=0.1)
             mensagem = (f'{nome} (CPU) em % = {cpu}')
 
         elif palavra in ["MEM", "MEMORIA"]:
@@ -196,19 +205,32 @@ def enviar_dados(conn,fila_msg):
             break
 
 def aceitar_cliente(conn,endereço):
-    print('Serviço conectado no :', endereço)
-    fila_msg = queue.Queue()
-    threads_monitores = {}
-    msg1 = "Menu de Comandos:\n" \
+    # (blocking=false não bloqueia execução)
+    vaga_aberta = semaforo_clientes.acquire(blocking=False)
+    
+    if not vaga_aberta:
+        msg_erro = "LIMITE DE CONEXOES ATINGIDO. Tente novamente mais tarde.\n"
+        conn.sendall(msg_erro.encode('utf-8'))
+        conn.close()
+        return
+
+    ativos = MAX_CLIENTES - semaforo_clientes._value
+    print(f"Usuário {endereço} conectado. Clientes ativos: {ativos}/{MAX_CLIENTES}")
+
+    try:
+        print('Cliente conectado no :', endereço)
+        fila_msg = queue.Queue()
+        threads_monitores = {}
+        msg1 = "Menu de Comandos:\n" \
                     "Listar Monitores = LIST\n" \
                     "Monitorar CPU = CPU>(tempo)\n" \
                     "Monitorar Memoria = MEM>(tempo)\n" \
                     "Terminar monitor = QUIT>(monitor)\n" \
                     "Terminar = exit\n"
     
-    print(msg1)
-    fila_msg.put(msg1)
-    try:
+        print(msg1)
+        fila_msg.put(msg1)
+
         thread1 = Thread(target=decodificar_mensagem, args=(conn,fila_msg,threads_monitores),daemon=True)
         thread2 = Thread(target=enviar_dados, args=(conn, fila_msg,),daemon = True)
 
@@ -217,11 +239,14 @@ def aceitar_cliente(conn,endereço):
 
         thread1.join()
         thread2.join()
+
     except Exception:
-        print("Cliente ainda conetado no endereço {endereço}")
+        print("Cliente ainda conectado no endereço {endereço}")
     finally:
+        semaforo_clientes.release()
+        clientes_restantes = MAX_CLIENTES - semaforo_clientes._value
         conn.close()
-        print("Usuário desconectado!")
+        print(f"Usuário {endereço} desconectado! Clientes ativos: {clientes_restantes}/{MAX_CLIENTES}")
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -230,6 +255,7 @@ server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.bind((HOST,PORT))
 print("Servidor Iniciado!\n")
 server.listen(5)
+
 while True:
     try:
         conexao, endereço = server.accept()

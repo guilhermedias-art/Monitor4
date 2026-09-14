@@ -146,7 +146,6 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
             for monitor in threads_monitores.values():
                 monitor["evento"].set()
             threads_monitores.clear()
-            encerrar_cliente.clear()
             fila_msg.put("EXIT")
 
 def listar_monitores(fila_msg,threads_monitores):
@@ -194,13 +193,15 @@ def monitoramento(nome, parada, palavra, arg,fila_msg,threads_monitores):
         
 
 def enviar_dados(conn,fila_msg,encerrar_cliente):
-    while not encerrar_cliente.is_set():
+    while True:
         try:
             msg = fila_msg.get()
 
             if(msg.upper() == "EXIT"):
-                finish = True
-                conn.sendall(msg.encode('utf-8'))
+                try:
+                    conn.sendall(msg.encode('utf-8'))
+                except Exception:
+                    pass
                 print("Envio de dados encerrado")
                 break
 
@@ -282,7 +283,8 @@ def aceitar_cliente(conn,endereço):
         with lock_clientes:
             if cliente in clientes:
                 cliente["estado"] = "DESCONECTADO"
-                clientes.remove(cliente)
+
+        listar_clientes()
 
     conn.close()
 
@@ -292,6 +294,8 @@ def listar_clientes():
             print("Nenhum cliente conectado.")
             return
 
+        print("\n--- Clientes Registrados ---")
+
         for indice, cliente in enumerate(clientes, start=1):
             print(
                 f"{indice} - "
@@ -299,6 +303,19 @@ def listar_clientes():
                 f"Estado: {cliente['estado']} | "
                 f"Thread: {cliente['thread'].name}"
             )
+
+            if cliente["estado"] == "ATIVO":
+                if cliente["threads_monitores"]:
+                    for nome, monitor in cliente["threads_monitores"].items():
+                        print(
+                            f"    {nome} - "
+                            f"Tipo: {monitor['tipo']} | "
+                            f"Intervalo: {monitor['intervalo']} segundos"
+                        )
+                else:
+                    print("    Nenhum monitor ativo")
+
+        print()
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

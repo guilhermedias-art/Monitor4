@@ -5,6 +5,7 @@ import time
 from threading import Thread, Event, Semaphore
 import queue
 import asyncio
+import threading
 
 
 HOST = '127.0.0.1'
@@ -18,8 +19,10 @@ else:
     MAX_CLIENTES = int(sys.argv[1])
 
 semaforo_clientes = Semaphore(MAX_CLIENTES)
-
-def decodificar_mensagem(conn,fila_msg,threads_monitores):
+clientes=[]
+handlers_clientes = []
+lock_clientes = threading.Lock()
+def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
     try:
         tempo_formatado = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
@@ -40,6 +43,7 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores):
 
             if(mensagem_decodificada.upper() == 'LIST'):
                 listar_monitores(fila_msg,threads_monitores)
+                listar_clientes()
                 continue
 
             elif(mensagem_decodificada.upper() == 'EXIT'):
@@ -142,6 +146,7 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores):
             for monitor in threads_monitores.values():
                 monitor["evento"].set()
             threads_monitores.clear()
+            encerrar_cliente.clear()
             fila_msg.put("EXIT")
 
 def listar_monitores(fila_msg,threads_monitores):
@@ -188,8 +193,8 @@ def monitoramento(nome, parada, palavra, arg,fila_msg,threads_monitores):
         parada.wait(int(arg))
         
 
-def enviar_dados(conn,fila_msg):
-    while True:
+def enviar_dados(conn,fila_msg,encerrar_cliente):
+    while not encerrar_cliente.is_set():
         try:
             msg = fila_msg.get()
 
@@ -221,6 +226,22 @@ def aceitar_cliente(conn,endereço):
         print('Cliente conectado no :', endereço)
         fila_msg = queue.Queue()
         threads_monitores = {}
+        encerrar_cliente = threading.Event()
+
+        cliente = {
+        "endereco": endereço,
+        "conexao": conn,
+        "thread": threading.current_thread(),
+        "estado": "ATIVO",
+        "fila_msg": fila_msg,
+        "threads_monitores": threads_monitores,
+        "encerrar": encerrar_cliente
+    }
+
+        with lock_clientes:
+            clientes.append(cliente)
+
+
         msg1 = "Menu de Comandos:\n" \
                     "Listar Monitores = LIST\n" \
                     "Monitorar CPU = CPU>(tempo)\n" \
@@ -231,9 +252,18 @@ def aceitar_cliente(conn,endereço):
         print(msg1)
         fila_msg.put(msg1)
 
-        thread1 = Thread(target=decodificar_mensagem, args=(conn,fila_msg,threads_monitores),daemon=True)
-        thread2 = Thread(target=enviar_dados, args=(conn, fila_msg,),daemon = True)
+        cliente["threads"] = {
+        "thread1": None,
+        "thread2": None,
+        "monitores": []
+    }
 
+        thread1 = Thread(target=decodificar_mensagem, args=(conn,fila_msg,threads_monitores,encerrar_cliente),daemon=True)
+        thread2 = Thread(target=enviar_dados, args=(conn, fila_msg,encerrar_cliente,),daemon = True)
+
+        cliente["threads"]["thread1"] = thread1
+        cliente["threads"]["thread2"] = thread2  
+        
         thread1.start()
         thread2.start()
 
@@ -241,13 +271,34 @@ def aceitar_cliente(conn,endereço):
         thread2.join()
 
     except Exception:
-        print("Cliente ainda conectado no endereço {endereço}")
+        print(f"Cliente ainda conectado no endereço {endereço}")
     finally:
         semaforo_clientes.release()
         clientes_restantes = MAX_CLIENTES - semaforo_clientes._value
         conn.close()
         print(f"Usuário {endereço} desconectado! Clientes ativos: {clientes_restantes}/{MAX_CLIENTES}")
 
+        encerrar_cliente.set()
+        with lock_clientes:
+            if cliente in clientes:
+                cliente["estado"] = "DESCONECTADO"
+                clientes.remove(cliente)
+
+    conn.close()
+
+def listar_clientes():
+    with lock_clientes:
+        if not clientes:
+            print("Nenhum cliente conectado.")
+            return
+
+        for indice, cliente in enumerate(clientes, start=1):
+            print(
+                f"{indice} - "
+                f"Endereço: {cliente['endereco']} | "
+                f"Estado: {cliente['estado']} | "
+                f"Thread: {cliente['thread'].name}"
+            )
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -260,6 +311,9 @@ while True:
     try:
         conexao, endereço = server.accept()
         thread3 = Thread(target = aceitar_cliente, args = (conexao,endereço,), daemon = True)
+        with lock_clientes:
+            handlers_clientes.append(thread3)
+
         thread3.start()
 
     except KeyboardInterrupt:

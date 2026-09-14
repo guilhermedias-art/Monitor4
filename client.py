@@ -18,8 +18,11 @@ def envio_d_dados(client):
     while True:
         try:
             mensagem = input("")
-            if mensagem:
+            if mensagem: 
                 client.sendall(mensagem.encode('utf-8'))
+            if mensagem == "EXIT":
+                client.close()
+                break
         except (BufferError, ConnectionResetError, BrokenPipeError, OSError, EOFError, ValueError):
             break
 

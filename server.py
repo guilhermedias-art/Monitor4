@@ -54,8 +54,6 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
                 threads_monitores.clear()
                 msg = f'Voce encerrou a conexão com o servidor'
                 fila_msg.put(msg)
-                msg = "EXIT"
-                fila_msg.put(msg)
                 break
 
             elif ">" not in mensagem_decodificada:
@@ -193,7 +191,7 @@ def monitoramento(nome, parada, palavra, arg,fila_msg,threads_monitores):
         
 
 def enviar_dados(conn,fila_msg,encerrar_cliente):
-    while True:
+    while not encerrar_cliente.is_set():
         try:
             msg = fila_msg.get()
 
@@ -211,7 +209,7 @@ def enviar_dados(conn,fila_msg,encerrar_cliente):
             break
 
 def aceitar_cliente(conn,endereço):
-    # (blocking=false não bloqueia execução)
+    cliente = None
     vaga_aberta = semaforo_clientes.acquire(blocking=False)
     
     if not vaga_aberta:
@@ -281,12 +279,10 @@ def aceitar_cliente(conn,endereço):
 
         encerrar_cliente.set()
         with lock_clientes:
-            if cliente in clientes:
+            if cliente is not None:
                 cliente["estado"] = "DESCONECTADO"
 
         listar_clientes()
-
-    conn.close()
 
 def listar_clientes():
     with lock_clientes:

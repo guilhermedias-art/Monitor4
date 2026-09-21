@@ -1,6 +1,9 @@
 import socket
 import sys
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 import time
 from threading import Thread, Event, Semaphore
 import queue
@@ -30,13 +33,18 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
         number = 0
         fila_msg.put(msg)
         while True:
-            dados = conn.recv(NUM_BYTES)
+            try:
+                dados = conn.recv(NUM_BYTES)
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+                break
+
             if not dados:
                 msg = f"Cliente desconectou do servidor inesperadamente\n"
                 fila_msg.put(msg)
                 break
 
-            mensagem_decodificada = dados.decode("utf-8")
+            # Tratamento do input com strip
+            mensagem_decodificada = dados.decode("utf-8").strip()
 
             if(mensagem_decodificada.upper() == 'LIST'):
                 listar_monitores(fila_msg,threads_monitores)
@@ -45,7 +53,7 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
 
             elif(mensagem_decodificada.upper() == 'EXIT'):
 
-                for monitor in threads_monitores.values():
+                for monitor in list(threads_monitores.values()):
                     monitor["evento"].set()
 
                 threads_monitores.clear()
@@ -134,14 +142,17 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
                 msg = f"Digite uma mensagem válida!\n"
                 fila_msg.put(msg)
 
+    # Captura erros no processamento de dados
+    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+        pass
     except Exception as e:
-            msg = f"Erro no armazenamento de dados: {e}\n"
-            fila_msg.put(msg)
+        msg = f"Erro no processamento de dados: {e}\n"
+        fila_msg.put(msg)
     finally:
-            for monitor in threads_monitores.values():
-                monitor["evento"].set()
-            threads_monitores.clear()
-            fila_msg.put("EXIT")
+        for monitor in list(threads_monitores.values()):
+            monitor["evento"].set()
+        threads_monitores.clear()
+        fila_msg.put("EXIT")
 
 def listar_monitores(fila_msg,threads_monitores):
     msg = "\n--- Threads Ativas Atualmente ---\n"
@@ -157,9 +168,8 @@ def listar_monitores(fila_msg,threads_monitores):
     quantidade_ativos = 0
 
     for indice, nome in enumerate(lista_nomes, start=1):
-        monitor = threads_monitores[nome]
-
-        if monitor["thread"].is_alive():
+        monitor = threads_monitores.get(nome)
+        if monitor and monitor["thread"].is_alive():
             quantidade_ativos += 1
 
             msg = f"{indice}. {nome} - Tipo: {monitor['tipo']} - Intervalo: {monitor['intervalo']} segundos\n"
@@ -174,11 +184,11 @@ def monitoramento(nome, parada, palavra, arg,fila_msg,threads_monitores):
     while not parada.is_set():
 
         if (palavra == "CPU"):
-            cpu = psutil.cpu_percent(interval=0.1)
+            cpu = psutil.cpu_percent(interval=0.1) if psutil else 0.0
             mensagem = (f'{nome} (CPU) em % = {cpu}')
 
         elif palavra in ["MEM", "MEMORIA"]:
-            memoria = psutil.virtual_memory().percent
+            memoria = psutil.virtual_memory().percent if psutil else 0.0
             mensagem = (f'{nome}: (RAM) em % = {memoria}')
 
         fila_msg.put(mensagem)
@@ -192,13 +202,16 @@ def enviar_dados(conn,fila_msg,encerrar_cliente):
         try:
             msg = fila_msg.get(timeout=0.7)
             conn.sendall(msg.encode('utf-8'))
-            if(msg.upper() == "EXIT"):
+            if(msg.strip().upper() == "EXIT"):
                 print("Envio de dados encerrado\n")
                 break
         except queue.Empty:
             continue
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+            print("Envio de dados encerrado\n")
+            break
         except Exception as e:
-            print(f"Envio de dados encerrado{e}\n")
+            print(f"Envio de dados encerrado: {e}\n")
             break
 
 def aceitar_cliente(conn,endereço):
@@ -207,11 +220,21 @@ def aceitar_cliente(conn,endereço):
     
     if not vaga_aberta:
         msg_erro = "LIMITE DE CONEXOES ATINGIDO. Tente novamente mais tarde.\n"
-        conn.sendall(msg_erro.encode('utf-8'))
-        conn.close()
+        try:
+            conn.sendall(msg_erro.encode('utf-8'))
+            conn.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+        finally:
+            try:
+                conn.close()
+            except OSError:
+                pass
         return
 
-    ativos = MAX_CLIENTES - semaforo_clientes._value
+    # Substitui acesso direto ao semaforo_clientes._value
+    with lock_clientes:
+        ativos = len(clientes) + 1
     print(f"Usuário {endereço} conectado. Clientes ativos: {ativos}/{MAX_CLIENTES}\n")
 
     try:
@@ -265,19 +288,25 @@ def aceitar_cliente(conn,endereço):
     except Exception:
         print(f"Cliente ainda conectado no endereço {endereço}")
     finally:
-        for monitor in threads_monitores.values():
+        for monitor in list(threads_monitores.values()):
             monitor['evento'].set()
         
         encerrar_cliente.set()
         semaforo_clientes.release()
-        conn.close()
-        clientes_restantes = MAX_CLIENTES - semaforo_clientes._value
-        print(f"Usuário {endereço} desconectado! Clientes ativos: {clientes_restantes}/{MAX_CLIENTES}")
+        try:
+            conn.close()
+        except OSError:
+            pass
 
         with lock_clientes:
-            if cliente is not None:
+            if cliente is not None and cliente in clientes:
                 cliente["estado"] = "DESCONECTADO"
                 clientes.remove(cliente)
+            clientes_restantes = len(clientes)
+            # Limpeza das threads de clientes antigos
+            handlers_clientes[:] = [t for t in handlers_clientes if t.is_alive()]
+
+        print(f"Usuário {endereço} desconectado! Clientes ativos: {clientes_restantes}/{MAX_CLIENTES}")
         listar_clientes()
 
 
@@ -298,8 +327,10 @@ def listar_clientes():
             )
 
             if cliente["estado"] == "ATIVO":
-                if cliente["threads_monitores"]:
-                    for nome, monitor in cliente["threads_monitores"].items():
+                # Realiza cópia para evitar race condition
+                monitores_copia = list(cliente["threads_monitores"].items())
+                if monitores_copia:
+                    for nome, monitor in monitores_copia:
                         print(
                             f"    {nome} - "
                             f"Tipo: {monitor['tipo']} | "
@@ -321,6 +352,7 @@ while True:
         thread3 = Thread(target = aceitar_cliente, args = (conexao,endereço,), daemon = True)
         with lock_clientes:
             handlers_clientes.append(thread3)
+            handlers_clientes[:] = [t for t in handlers_clientes if t.is_alive()]
 
         thread3.start()
 
@@ -328,4 +360,3 @@ while True:
         print("\nServidor finalizado pelo operador.")
         server.close()
         sys.exit(0)
-

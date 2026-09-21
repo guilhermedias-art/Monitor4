@@ -12,7 +12,7 @@ cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     cliente.connect((HOST, PORT))
 except Exception as e:
-    print(f"Não foi possível conectar ao servidor: {e}")
+    print(f"Não foi possível conectar ao servidor")
     sys.exit(1)
 
 def envio_d_dados(client,encerrar_cliente):
@@ -24,9 +24,9 @@ def envio_d_dados(client,encerrar_cliente):
                     client.sendall(mensagem.encode('utf-8'))
                 except(OSError, BrokenPipeError):
                     print("\nTentativa de conexão falha, tente novamente!")
-            if mensagem == "EXIT":
+            if mensagem.strip().upper() == "EXIT":
                 break
-        except (ConnectionResetError, OSError, BrokenPipeError, EOFError):
+        except (ConnectionResetError, OSError, BrokenPipeError, EOFError, KeyboardInterrupt):
             print("\nConexão finalizada!")
             break
 
@@ -42,7 +42,6 @@ def exibir_msg(client,encerrar_cliente):
             mensagem_decodificada = dados_p_decodificar.decode('utf-8').strip()
             print(mensagem_decodificada)
 
-
             if mensagem_decodificada == "EXIT":
                 print("\nSaindo do programa")
                 encerrar_cliente.set()
@@ -53,7 +52,10 @@ def exibir_msg(client,encerrar_cliente):
             print("\nConexão encerrada pelo servidor.")
             break
 
-    client.close()
+    try:
+        client.close()
+    except OSError:
+        pass
 
 
 thread1 = Thread(target=envio_d_dados, args=(cliente,encerrar_cliente,), daemon=True)
@@ -62,5 +64,10 @@ thread2 = Thread(target=exibir_msg, args=(cliente,encerrar_cliente,), daemon=Tru
 thread1.start()
 thread2.start()
 
-thread2.join()
+try:
+    thread2.join()
+except KeyboardInterrupt:
+    print("\nCliente finalizado pelo usuário.")
+    sys.exit(0)
+
 sys.exit(0)

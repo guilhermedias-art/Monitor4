@@ -32,11 +32,8 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
         while True:
             dados = conn.recv(NUM_BYTES)
             if not dados:
-                for monitor in threads_monitores.values():
-                    monitor["evento"].set()
-
-                threads_monitores.clear()
-                fila_msg.put("EXIT")
+                msg = f"Cliente desconectou do servidor inesperadamente\n"
+                fila_msg.put(msg)
                 break
 
             mensagem_decodificada = dados.decode("utf-8")
@@ -52,7 +49,7 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
                     monitor["evento"].set()
 
                 threads_monitores.clear()
-                msg = f'Voce encerrou a conexão com o servidor'
+                msg = f'Voce encerrou a conexão com o servidor\n'
                 fila_msg.put(msg)
                 break
 
@@ -128,17 +125,17 @@ def decodificar_mensagem(conn,fila_msg,threads_monitores,encerrar_cliente):
                     fila_msg.put(msg)
 
                     del threads_monitores[arg]
-
                 else:
-                    msg = f"Monitor não encontrado"
+                    msg = f"Monitor não encontrado\n"
                     fila_msg.put(msg)
 
+
             else:
-                msg = f"Digite uma mensagem válida!"
+                msg = f"Digite uma mensagem válida!\n"
                 fila_msg.put(msg)
 
     except Exception as e:
-            msg = f"Erro no armazenamento de dados: {e}"
+            msg = f"Erro no armazenamento de dados: {e}\n"
             fila_msg.put(msg)
     finally:
             for monitor in threads_monitores.values():
@@ -193,19 +190,15 @@ def monitoramento(nome, parada, palavra, arg,fila_msg,threads_monitores):
 def enviar_dados(conn,fila_msg,encerrar_cliente):
     while not encerrar_cliente.is_set():
         try:
-            msg = fila_msg.get()
-
-            if(msg.upper() == "EXIT"):
-                try:
-                    conn.sendall(msg.encode('utf-8'))
-                except Exception:
-                    pass
-                print("Envio de dados encerrado")
-                break
-
+            msg = fila_msg.get(timeout=0.7)
             conn.sendall(msg.encode('utf-8'))
-            
-        except (Exception):
+            if(msg.upper() == "EXIT"):
+                print("Envio de dados encerrado\n")
+                break
+        except queue.Empty:
+            continue
+        except Exception as e:
+            print(f"Envio de dados encerrado{e}\n")
             break
 
 def aceitar_cliente(conn,endereço):
@@ -219,7 +212,7 @@ def aceitar_cliente(conn,endereço):
         return
 
     ativos = MAX_CLIENTES - semaforo_clientes._value
-    print(f"Usuário {endereço} conectado. Clientes ativos: {ativos}/{MAX_CLIENTES}")
+    print(f"Usuário {endereço} conectado. Clientes ativos: {ativos}/{MAX_CLIENTES}\n")
 
     try:
         print('Cliente conectado no :', endereço)
@@ -246,7 +239,7 @@ def aceitar_cliente(conn,endereço):
                     "Monitorar CPU = CPU>(tempo)\n" \
                     "Monitorar Memoria = MEM>(tempo)\n" \
                     "Terminar monitor = QUIT>(monitor)\n" \
-                    "Terminar = exit\n"
+                    "Encerrar comunicação com servidor = EXIT\n" \
     
         print(msg1)
         fila_msg.put(msg1)
@@ -272,17 +265,21 @@ def aceitar_cliente(conn,endereço):
     except Exception:
         print(f"Cliente ainda conectado no endereço {endereço}")
     finally:
+        for monitor in threads_monitores.values():
+            monitor['evento'].set()
+        
+        encerrar_cliente.set()
         semaforo_clientes.release()
-        clientes_restantes = MAX_CLIENTES - semaforo_clientes._value
         conn.close()
+        clientes_restantes = MAX_CLIENTES - semaforo_clientes._value
         print(f"Usuário {endereço} desconectado! Clientes ativos: {clientes_restantes}/{MAX_CLIENTES}")
 
-        encerrar_cliente.set()
         with lock_clientes:
             if cliente is not None:
                 cliente["estado"] = "DESCONECTADO"
-
+                clientes.remove(cliente)
         listar_clientes()
+
 
 def listar_clientes():
     with lock_clientes:
@@ -309,9 +306,7 @@ def listar_clientes():
                             f"Intervalo: {monitor['intervalo']} segundos"
                         )
                 else:
-                    print("    Nenhum monitor ativo")
-
-        print()
+                    print("Nenhum monitor ativo")
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

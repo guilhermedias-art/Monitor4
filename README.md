@@ -1,7 +1,7 @@
 # Projeto Prático 1: Monitor do Sistema
 ## Disciplina: Redes de Computadores
 
-Este projeto implementa uma aplicação de rede no modelo cliente/servidor para monitoramento remoto de recursos do sistema operacional (CPU e Memória RAM). A arquitetura foi desenvolvida utilizando Sockets em Python, Threads e estruturas de dados compartilhadas para comunicação assíncrona bidirecional, atendendo aos requisitos da Fase 1 da especificação do Projeto Prático 1.
+Este projeto implementa uma aplicação de rede no modelo cliente/servidor para monitoramento remoto de recursos do sistema operacional (CPU e Memória RAM). A arquitetura foi desenvolvida utilizando Sockets em Python, Threads e estruturas de dados compartilhadas para comunicação assíncrona bidirecional, atendendo aos requisitos das Fases 1, 2 e 3 da especificação do Projeto Prático 1.
 
 ## Arquitetura do Sistema
 
@@ -28,9 +28,27 @@ O servidor interpreta os comandos enviados pelo cliente para gerenciar os monito
 *   `QUIT>(nome_do_monitor)`: Envia um sinal para finalizar especificamente a thread de um monitor remoto sem afetar as demais conexões e operações.
 *   `EXIT`: Solicita o encerramento de todas as threads ativas. O servidor interrompe as medições, fecha o socket e instrui o cliente a se desligar.
 
+## Fase 2: Multi-Cliente
+
+O servidor foi estendido para suportar múltiplos clientes simultâneos de forma isolada e segura:
+
+*   **Controle de limite:** Um `Semaphore` limita o número de clientes simultâneos. Caso o limite seja atingido, o novo cliente recebe a mensagem `LIMITE DE CONEXOES ATINGIDO` e a conexão é encerrada de forma limpa com `shutdown()`.
+*   **Isolamento por cliente:** Cada cliente possui sua própria `queue.Queue`, seu dicionário de `threads_monitores` e seu `threading.Event` de encerramento — sem compartilhamento de estado entre sessões distintas.
+*   **Thread handler:** Cada cliente é atendido por uma thread dedicada (`thread3`), rastreada em `handlers_clientes`.
+
+## Fase 3: Tratamento de Exceções e Estabilidade
+
+O foco desta fase foi garantir que nenhum erro ou warning do interpretador seja exibido em nenhuma situação de uso:
+
+*   **Vazamento de memória corrigido:** `handlers_clientes` é podado periodicamente com `[t for t in handlers_clientes if t.is_alive()]`, removendo threads finalizadas.
+*   **Segurança de iteração:** Iterações sobre `threads_monitores` usam `list(...)` para criar snapshots, evitando `RuntimeError` por modificação de dicionário durante iteração concorrente.
+*   **Exceções de socket silenciosas:** `BrokenPipeError`, `ConnectionResetError` e `OSError` são capturadas explicitamente nos loops de leitura e escrita, sem propagar tracebacks ao console.
+*   **Cliente estável:** `KeyboardInterrupt` (Ctrl+C) e `EOFError` (Ctrl+D) são tratados no cliente, encerrando o processo de forma limpa.
+
 ## Como Executar
 
 ### Pré-requisitos
 O servidor requer a biblioteca `psutil` instalada no ambiente Python para a extração dos dados do Sistema Operacional.
 ```bash
 pip install psutil
+```
